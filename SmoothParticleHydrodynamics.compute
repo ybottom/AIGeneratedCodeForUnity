@@ -1,0 +1,94 @@
+#pragma kernel CSMain
+#pragma shader_feature _PARTICLE_COLLISION
+#pragma shader_feature _FLUID_DYNAMICS
+#pragma shader_feature _ENVIRONMENT_COLLISION
+
+// Define a struct for a particle
+struct Particle {
+    float3 position;
+    float3 velocity;
+    float mass;
+    float density;
+    float pressure;
+    // Add more particle properties if needed
+};
+
+// Define a struct for a triangle
+struct Triangle {
+    float3 vertex1;
+    float3 vertex2;
+    float3 vertex3;
+};
+
+// Declare a RWStructuredBuffer for particles and triangles
+RWStructuredBuffer<Particle> particles;
+RWStructuredBuffer<Triangle> triangles;
+// Declare other required buffers and variables here
+
+// Define constants and parameters for SPH
+float smoothingLength = 0.1f;
+float smoothingLengthSquared = smoothingLength * smoothingLength;
+float poly6Coefficient = 315.0 / (64.0 * 3.141592 * pow(smoothingLength, 9));
+float spikyGradientCoefficient = -45.0 / (3.141592 * pow(smoothingLength, 6));
+float viscosityCoefficient = 0.1f; // Adjust as needed
+float restDensity = 1000.0f;
+float gasConstant = 2000.0f;
+// Add more parameters as needed
+
+// Constants for hash grid
+const uint gridResolution = 64; // Adjust as needed
+const uint gridSize = gridResolution * gridResolution * gridResolution;
+const float cellSize = smoothingLength;
+uint3 gridDimensions = uint3(gridResolution, gridResolution, gridResolution);
+
+// Function to calculate the Poly6 Smoothing Kernel
+float Poly6Kernel(float rSquared) {
+    if (rSquared >= smoothingLengthSquared) return 0.0;
+    return poly6Coefficient * pow(smoothingLengthSquared - rSquared, 3);
+}
+
+// Function to calculate the Spiky Gradient Smoothing Kernel
+float3 SpikyGradientKernel(float3 r, float rLength) {
+    if (rLength >= smoothingLength) return float3(0.0, 0.0, 0.0);
+    return spikyGradientCoefficient * r * pow(smoothingLength - rLength, 2);
+}
+
+// Function to calculate the Viscosity Smoothing Kernel
+float ViscosityKernel(float rSquared) {
+    if (rSquared >= smoothingLengthSquared) return 0.0;
+    float q = sqrt(rSquared) / smoothingLength;
+    return viscosityCoefficient * (1.0 - q) * (1.0 - q) * (1.0 - q);
+}
+
+// Function to calculate hash for a given particle's position
+uint HashPosition(float3 position) {
+    uint3 gridPosition = uint3(position / cellSize);
+    return gridPosition.x + gridPosition.y * gridDimensions.x + gridPosition.z * gridDimensions.x * gridDimensions.y;
+}
+
+// Function to check if two grid indices are neighboring cells
+bool IsNeighborCell(uint cellIndex1, uint cellIndex2) {
+    // Implement the logic to determine if two grid cells are neighbors
+    // You can use the gridDimensions to help with this calculation
+    // Return true if the cells are neighbors, otherwise return false
+}
+
+// ... (inside CSMain)
+
+// Perform SPH calculations for particle-particle interactions
+#ifdef _PARTICLE_COLLISION
+float3 acceleration = float3(0.0, 0.0, 0.0);
+uint particleGridIndex = particleGridIndices[id.x]; // Assuming particleGridIndices is calculated as shown in previous code
+
+for (uint j = 0; j < particles.Length; ++j) {
+    if (j == id.x) continue;
+    
+    Particle neighbor = particles[j];
+    uint neighborGridIndex = particleGridIndices[j];
+    
+    // Check if the neighbor is in the same grid cell or adjacent cells
+    if (IsNeighborCell(particleGridIndex, neighborGridIndex)) {
+        // Rest of the calculations and forces (density, pressure, viscosity)
+        // ...
+    }
+}
